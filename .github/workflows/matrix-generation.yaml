@@ -17,6 +17,7 @@ on:
           - ALCF
           - OLCF_Open
           - OLCF_Moderate
+          - SLAC
 
 permissions:
   contents: write
@@ -54,6 +55,9 @@ jobs:
             type: remote
           - name: OLCF_Moderate
             site: https://amsc-moderate.s3m.olcf.ornl.gov/
+            type: remote
+          - name: SLAC
+            site: https://iri.slac.stanford.edu/
             type: remote
 
     steps:
