@@ -43,3 +43,7 @@ For more information on the broader DoE IRI project, official reference implemen
 3. **[HAL `_links` for the IRI Facility API](./rfc-hal-links.md)**:
 
 	This document defines an additive HAL `_links` convention for IRI v2 resource-oriented JSON representations. It makes related resources, topology relationships, operation entry points, and machine-readable service descriptions explicit and navigable; defines migration of existing navigable URI-valued properties to standard or registered DOE-IRI link relations; and advertises an initial job-submission affordance. OpenAPI remains authoritative for operation invocation, and the RFC does not change the production OpenAPI schemas.
+
+4. **[Container Execution Capability Discovery for IRI Compute Systems](./rfc-container-capability-discovery.md)**:
+
+	This document defines a read-only, structured capability-discovery contract for containerized workloads on IRI compute systems. It adds an optional `container_runtimes` attribute to the in-progress Compute System Resource Definition Profile describing accepted runtimes and image formats, direct registry pull versus required pre-staging, registry policy and private-registry authentication model, execution identity and privilege policy, GPU integration, build availability, and CPU architecture. It reuses the type-specific `attributes` mechanism, the DOE-IRI URN registry, and HAL `_links`; it defines no new endpoint and no change to the `Container` job schema. A normalized image acquisition and reuse contract is deferred to a companion RFC.

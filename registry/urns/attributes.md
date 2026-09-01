@@ -11,8 +11,20 @@ listed here has status `provisional`.
 |---|---|---|
 | `system-capability` (stable system capabilities) | `batch-scheduling`, `interactive-access`, `container-execution`, `accelerator-support` | [Compute System](../profiles/resource-definition/compute/system.md) |
 | `node-role` (node's intended function) | `compute`, `login`, `service` | [Compute Node](../profiles/resource-definition/compute/node.md) |
-| `cpu-architecture` (processor ISA family) | `x86-64`, `arm64`, `ppc64le`, `riscv64` | [CPU](../profiles/resource-definition/compute/cpu.md) |
-| `gpu-programming-interface` (facility-supported GPU programming interface) | `cuda`, `hip`, `opencl`, `sycl` | [GPU](../profiles/resource-definition/compute/gpu.md) |
+| `cpu-architecture` (processor ISA family) | `x86-64`, `arm64`, `ppc64le`, `riscv64` | [CPU](../profiles/resource-definition/compute/cpu.md), [Compute System](../profiles/resource-definition/compute/system.md) |
+| `gpu-programming-interface` (facility-supported GPU programming interface) | `cuda`, `hip`, `opencl`, `sycl` | [GPU](../profiles/resource-definition/compute/gpu.md), [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-runtime` (container engine that executes workloads) | `apptainer`, `singularity`, `podman`, `podman-hpc`, `shifter`, `docker` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-image-format` (accepted container image input representation) | `oci-image`, `docker-v2-image`, `oci-image-layout`, `oci-archive`, `docker-archive`, `sif`, `apptainer-sandbox` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-execution-format` (facility-native representation used to execute) | `sif`, `runtime-managed-image`, `oci-runtime-bundle`, `rootfs-directory` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-acquisition` (how a registry image becomes runnable) | `direct`, `pre-stage-required`, `not-supported` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-registry-auth` (private-registry authentication method) | `none`, `anonymous`, `user-login`, `facility-managed`, `pull-secret` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-uid-mode` (in-container execution identity model) | `host-user`, `userns`, `fakeroot`, `setuid-helper` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-gpu-injection` (how GPU and host libraries are exposed in the container) | `automatic`, `module`, `runtime-hook`, `host-library-bind` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-build` (where a user may build or convert images on facility compute) | `none`, `login-node`, `compute-node`, `batch`, `ci-service` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-mpi-model` (how a containerized MPI app obtains a working MPI) | `bind`, `hybrid`, `container-native`, `none` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-mpi-host-transfer` (how the host MPI stack reaches the container) | `bind-mount`, `library-injection`, `library-swap`, `launcher-only`, `none` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-mpi-abi` (ABI family the in-container MPI must match) | `mpich`, `open-mpi` | [Compute System](../profiles/resource-definition/compute/system.md) |
+| `container-mpi-activation` (how the user enables host-MPI integration) | `automatic`, `flag`, `module`, `env`, `none` | [Compute System](../profiles/resource-definition/compute/system.md) |
 
 Each row is a compact canonical-URN enumeration: concatenate its vocabulary and
 each listed value as `urn:doe-iri:compute:<vocabulary>:<value>`. For example,

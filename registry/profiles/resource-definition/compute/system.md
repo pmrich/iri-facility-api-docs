@@ -50,14 +50,85 @@ urn:doe-iri
 │       └── system
 │
 └── compute
-    └── system-capability
-        ├── batch-scheduling
-        ├── interactive-access
-        ├── container-execution
-        └── accelerator-support
+    ├── system-capability
+    │   ├── batch-scheduling
+    │   ├── interactive-access
+    │   ├── container-execution
+    │   └── accelerator-support
+    ├── container-runtime
+    │   ├── apptainer
+    │   ├── singularity
+    │   ├── podman
+    │   ├── podman-hpc
+    │   ├── shifter
+    │   └── docker
+    ├── container-image-format
+    │   ├── oci-image
+    │   ├── docker-v2-image
+    │   ├── oci-image-layout
+    │   ├── oci-archive
+    │   ├── docker-archive
+    │   ├── sif
+    │   └── apptainer-sandbox
+    ├── container-execution-format
+    │   ├── sif
+    │   ├── runtime-managed-image
+    │   ├── oci-runtime-bundle
+    │   └── rootfs-directory
+    ├── container-acquisition
+    │   ├── direct
+    │   ├── pre-stage-required
+    │   └── not-supported
+    ├── container-registry-auth
+    │   ├── none
+    │   ├── anonymous
+    │   ├── user-login
+    │   ├── facility-managed
+    │   └── pull-secret
+    ├── container-uid-mode
+    │   ├── host-user
+    │   ├── userns
+    │   ├── fakeroot
+    │   └── setuid-helper
+    ├── container-gpu-injection
+    │   ├── automatic
+    │   ├── module
+    │   ├── runtime-hook
+    │   └── host-library-bind
+    ├── container-build
+    │   ├── none
+    │   ├── login-node
+    │   ├── compute-node
+    │   ├── batch
+    │   └── ci-service
+    ├── container-mpi-model
+    │   ├── bind
+    │   ├── hybrid
+    │   ├── container-native
+    │   └── none
+    ├── container-mpi-host-transfer
+    │   ├── bind-mount
+    │   ├── library-injection
+    │   ├── library-swap
+    │   ├── launcher-only
+    │   └── none
+    ├── container-mpi-abi
+    │   ├── mpich
+    │   └── open-mpi
+    ├── container-mpi-activation
+    │   ├── automatic
+    │   ├── flag
+    │   ├── module
+    │   ├── env
+    │   └── none
+    ├── cpu-architecture             (reused; registered by the CPU profile)
+    └── gpu-programming-interface    (reused; registered by the GPU profile)
 ```
 
 ## 4. Compute System Attributes
+
+The `container-*` vocabularies are used only by the `container_runtimes` attribute (Section 4.4). `cpu-architecture` and `gpu-programming-interface` are reused unchanged from the [CPU](cpu.md) and [GPU](gpu.md) profiles; the [Controlled Attribute URN Registry](../../../urns/attributes.md) remains authoritative for all of these values.
+
 
 This Resource Definition Profile defines the set of attributes that MAY be used to describe resources of type `urn:doe-iri:resource:compute:system`.
 
@@ -76,6 +147,7 @@ Configured aggregate counts describe the capacity represented by the resource de
 | `vendor` | 1.0.0 | string | Identifies the system vendor when relevant. | no |
 | `product` | 1.0.0 | string | Identifies the system product or platform when relevant. | no |
 | `version` | 1.0.0 | string | Identifies the deployed platform or system version when relevant. | no |
+| `container_runtimes` | 1.0.0 | Array `ContainerRuntimeProfile` | Container execution capability discovery: one entry per facility container execution path (Section 4.4). Absent means container capability is not published (unknown); an empty array states that containerized execution is unsupported. | no |
 
 ### 4.1 Compute System Capabilities
 
@@ -134,6 +206,78 @@ The optional `vendor`, `product`, and `version` attributes provide descriptive i
 
 These values are represented as strings rather than controlled DOE-IRI URNs unless a future interoperability requirement demonstrates a need for a controlled vendor or product vocabulary.
 
+### 4.4 Container Runtimes
+
+The `container_runtimes` attribute is an OPTIONAL addition to this draft profile. It lets a client discover, before job submission, how a compute system runs containerized workloads: which runtimes it accepts, which image formats, whether a registry image can be referenced directly or must be pre-staged and converted, which registries are permitted, how a private repository is authenticated, how GPUs and host libraries are integrated, whether rootless or unprivileged execution is required, whether a facility build environment exists, and which CPU architectures are supported. It carries no image-acquisition operation and does not change the `Container` job schema.
+
+`container_runtimes` is an array of `ContainerRuntimeProfile` objects. Each object describes one facility container execution path. Array order is not significant.
+
+- The attribute is OPTIONAL. Its absence means the facility has not published structured container information; container capability is then **unknown** and MUST NOT be read as unsupported.
+- An empty array (`[]`) is an explicit statement that containerized execution is not supported. When it is empty, `urn:doe-iri:compute:system-capability:container-execution` MUST NOT appear in `system_capabilities`.
+- A non-empty array MUST be accompanied by `urn:doe-iri:compute:system-capability:container-execution` in `system_capabilities`.
+- When the array is non-empty, exactly one entry MUST have `default` set to `true`.
+- Two entries MUST NOT share the same `runtime` value unless their `applies_to_queues` sets are disjoint.
+
+The `ContainerRuntimeProfile` attributes are:
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `runtime` | IRI URN (`container-runtime`) | yes | Container runtime/engine for this path. |
+| `runtime_version` | string | no | Deployed or default runtime version. Informational. |
+| `default` | boolean | yes | Whether this is the default path among otherwise matching entries. Exactly one `true` per non-empty array. |
+| `applies_to_queues` | array of string | no | Exact resource-local queue names this entry applies to, matching `JobAttributes.queue_name`. Absent means all queues. Non-empty and unique when present. |
+| `accepted_image_formats` | array of IRI URN (`container-image-format`) | yes (≥ 1) | Input representations this path can consume. Unique. |
+| `native_execution_format` | IRI URN (`container-image-format` or `container-execution-format`) | no | Representation actually executed. Differs from an accepted input when conversion occurs in this path. |
+| `registry_pull` | IRI URN (`container-acquisition`) | yes | `direct`, `pre-stage-required`, or `not-supported`. |
+| `pull_actor` | string enum: `user`, `facility`, `runtime` | no | Which actor performs the pull and any conversion. Informational. |
+| `registry_policy_mode` | string enum: `any`, `allowlist`, `deny-all`, `unknown` | required when `registry_pull` is not `not-supported` | Outbound registry access state. |
+| `allowed_registries` | array of string (HTTPS origin) | required and non-empty iff `registry_policy_mode` is `allowlist`; absent otherwise | Exact HTTPS origins (scheme and authority only). Informational discovery aid, not an authorization statement. |
+| `private_registry_auth` | array of IRI URN (`container-registry-auth`) | no | Authentication methods available for private repositories. Unique. Names methods, never credential material. |
+| `auth_docs_uri` | string (URI) | no | Human documentation for establishing private-registry access. |
+| `rootless_required` | boolean | no | Whether containers must run rootless. |
+| `privileged_allowed` | boolean | no | Whether `--privileged`-equivalent execution is permitted. |
+| `uid_mode` | IRI URN (`container-uid-mode`) | no | In-container execution identity model. |
+| `gpu_integration` | `GpuIntegration` object | no | GPU and host-library integration for this path. |
+| `mpi` | `ContainerMpiSupport` object | no | How MPI works inside containers on this path. |
+| `cpu_architectures` | array of IRI URN (`cpu-architecture`) | no | CPU architectures supported for container execution on this path. Unique. |
+| `build_support` | IRI URN (`container-build`) | no | Where a user may build or convert an image using facility compute. |
+| `build_docs_uri` | string (URI) | no | Human documentation for the build/convert workflow. |
+| `image_scanning` | string enum: `required`, `optional`, `not-supported`, `unknown` | no | Facility image-scanning policy for this path. |
+| `signature_verification` | string enum: `required`, `optional`, `not-supported`, `unknown` | no | Facility image-signature policy for this path. |
+| `network_modes` | array of string enum: `host`, `none`, `isolated` | no | Non-empty unique set of supported container network modes. |
+| `default_network_mode` | string enum: `host`, `none`, `isolated` | required when `network_modes` is present | One member of `network_modes`. |
+| `max_image_bytes` | integer (> 0) | no | Maximum accepted source/compressed image size when the facility enforces one. |
+| `notes` | string | no | Human-readable clarification. Not machine-interpreted. |
+
+The `GpuIntegration` object contains:
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `programming_interfaces` | array of IRI URN (`gpu-programming-interface`) | no | GPU programming interfaces usable from within the container on this path. Unique. |
+| `injection_mechanism` | IRI URN (`container-gpu-injection`) | no | How the adapter exposes GPU devices and host libraries in the container. |
+
+`GpuIntegration` MUST NOT contain native runtime flags. Runtime identity is informational and MUST NOT be used to infer accepted formats, native execution format, acquisition behavior, registry policy, architecture, or execution policy; those are stated explicitly by the entry.
+
+The `ContainerMpiSupport` object describes how an MPI application inside a container obtains a working MPI at run time. This is the sharpest difference between facilities and is not implied by `runtime`: the common DOE pattern is that the container carries an ABI-compatible MPICH and the facility supplies its optimized host MPI (HPE Cray MPICH, Aurora MPICH) at run time, either bind-mounted into the container (OLCF, ALCF) or swapped/injected over the container's MPICH by a runtime option (NERSC `podman-hpc --mpi`, Shifter `--module=mpich`). A container-native Open MPI built with PMIx is the portable but non-optimized alternative.
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `models` | array of IRI URN (`container-mpi-model`) | yes (≥ 1) | Supported MPI integration models: `bind`, `hybrid`, `container-native`, `none`. Unique. |
+| `default_model` | IRI URN (`container-mpi-model`) | required when `models` has more than one entry and is not solely `none` | Model the facility recommends. Member of `models`. |
+| `host_transfer` | IRI URN (`container-mpi-host-transfer`) | no | How the host MPI stack reaches the container for a non-native model: `bind-mount`, `library-injection`, `library-swap`, `launcher-only`, `none`. |
+| `host_mpi` | string | no | Host MPI stack the container integrates with, e.g. `HPE Cray MPICH 8`. Informational. |
+| `abi` | IRI URN (`container-mpi-abi`) | no | ABI family the in-container MPI must conform to for a non-native model: `mpich` or `open-mpi`. |
+| `required_container_mpi` | string | no | In-container MPI the facility requires for ABI-compatible operation, e.g. `MPICH 3.4.2 or 3.4.3`. |
+| `gpu_aware` | string enum: `supported`, `not-supported`, `unknown` | no | Whether GPU-aware (CUDA / ROCm / Level Zero) MPI is available from within the container. |
+| `process_managers` | array of string enum: `pmi1`, `pmi2`, `pmix` | no | Process-manager interfaces the host launcher offers the container. Non-empty unique when present. |
+| `activation` | IRI URN (`container-mpi-activation`) | no | How the user enables host-MPI integration: `automatic`, `flag`, `module`, `env`, `none`. |
+| `mpi_docs_uri` | string (URI) | no | Human documentation for running MPI in containers on this path. |
+| `notes` | string | no | Human clarification, e.g. exact bind paths, module names, environment variables. Not machine-interpreted. |
+
+`ContainerMpiSupport` values are descriptive. This profile defines no MPI-setup operation and does not guarantee native MPI performance for any given image.
+
+[RFC: Container Execution Capability Discovery for IRI Compute Systems](../../../../rfc/rfc-container-capability-discovery.md) is authoritative for the complete normative producer and consumer requirements, validation rules, security considerations, and conformance plan for this attribute.
+
 ## 5 Compute System JSON Schema
 
 ```yaml
@@ -148,6 +292,239 @@ components:
         controlled vocabulary value.
       pattern: '^urn:doe-iri:[A-Za-z0-9][A-Za-z0-9:._~-]*$'
       example: urn:doe-iri:compute:system-capability:batch-scheduling
+
+    GpuIntegration:
+      type: object
+      additionalProperties: false
+      description: >
+        Adapter-managed GPU and host-library integration for a container
+        execution path.
+      properties:
+        programming_interfaces:
+          type: array
+          uniqueItems: true
+          description: >
+            Registered urn:doe-iri:compute:gpu-programming-interface values
+            usable from within the container on this path.
+          items:
+            $ref: '#/components/schemas/IriUrn'
+        injection_mechanism:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-gpu-injection value.
+
+    ContainerMpiSupport:
+      type: object
+      additionalProperties: false
+      description: >
+        How an MPI application inside a container obtains a working MPI at
+        run time on this path. RFC: Container Execution Capability Discovery
+        is authoritative for the normative rules.
+      required:
+        - models
+      properties:
+        models:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          description: >
+            Registered urn:doe-iri:compute:container-mpi-model values:
+            bind, hybrid, container-native, none.
+          items:
+            $ref: '#/components/schemas/IriUrn'
+        default_model:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Recommended model. Required when models has more than one entry
+            and is not solely none. Member of models.
+        host_transfer:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-mpi-host-transfer value:
+            bind-mount, library-injection, library-swap, launcher-only, none.
+        host_mpi:
+          type: string
+          description: Host MPI stack the container integrates with. Informational.
+        abi:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-mpi-abi value the
+            in-container MPI must conform to for a non-native model.
+        required_container_mpi:
+          type: string
+          description: >
+            In-container MPI the facility requires for ABI-compatible
+            operation, e.g. "MPICH 3.4.2 or 3.4.3".
+        gpu_aware:
+          type: string
+          enum: [supported, not-supported, unknown]
+        process_managers:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [pmi1, pmi2, pmix]
+        activation:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-mpi-activation value:
+            automatic, flag, module, env, none.
+        mpi_docs_uri:
+          type: string
+          format: uri
+        notes:
+          type: string
+
+    ContainerRuntimeProfile:
+      type: object
+      additionalProperties: false
+      description: >
+        One facility container execution path for a compute system.
+        RFC: Container Execution Capability Discovery is authoritative for
+        the normative rules.
+      required:
+        - runtime
+        - default
+        - accepted_image_formats
+        - registry_pull
+      properties:
+        runtime:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: Registered urn:doe-iri:compute:container-runtime value.
+        runtime_version:
+          type: string
+          description: Deployed or default runtime version. Informational.
+        default:
+          type: boolean
+          description: >
+            Whether this is the default path among otherwise matching
+            entries. Exactly one entry has default true when the array is
+            non-empty.
+        applies_to_queues:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          description: >
+            Exact resource-local queue names this entry applies to. Absent
+            means all queues represented by the resource.
+          items:
+            type: string
+            minLength: 1
+        accepted_image_formats:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          description: >
+            Registered urn:doe-iri:compute:container-image-format values this
+            path can consume.
+          items:
+            $ref: '#/components/schemas/IriUrn'
+        native_execution_format:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-image-format or
+            urn:doe-iri:compute:container-execution-format value actually
+            executed. Differs from the accepted input when conversion occurs.
+        registry_pull:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: >
+            Registered urn:doe-iri:compute:container-acquisition value:
+            direct, pre-stage-required, or not-supported.
+        pull_actor:
+          type: string
+          enum: [user, facility, runtime]
+          description: Which actor performs the pull and any conversion.
+        registry_policy_mode:
+          type: string
+          enum: [any, allowlist, deny-all, unknown]
+          description: >
+            Outbound registry access state. Required when registry_pull is
+            not not-supported.
+        allowed_registries:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          description: >
+            Exact HTTPS origins, scheme and authority only. Present and
+            non-empty only when registry_policy_mode is allowlist.
+            Informational discovery aid, not an authorization statement.
+          items:
+            type: string
+            format: uri
+        private_registry_auth:
+          type: array
+          uniqueItems: true
+          description: >
+            Registered urn:doe-iri:compute:container-registry-auth methods
+            available for private repositories. Names methods, not material.
+          items:
+            $ref: '#/components/schemas/IriUrn'
+        auth_docs_uri:
+          type: string
+          format: uri
+          description: >
+            Human documentation for establishing private-registry access.
+        rootless_required:
+          type: boolean
+        privileged_allowed:
+          type: boolean
+        uid_mode:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: Registered urn:doe-iri:compute:container-uid-mode value.
+        gpu_integration:
+          $ref: '#/components/schemas/GpuIntegration'
+        mpi:
+          $ref: '#/components/schemas/ContainerMpiSupport'
+        cpu_architectures:
+          type: array
+          uniqueItems: true
+          description: >
+            Registered urn:doe-iri:compute:cpu-architecture values supported
+            for container execution on this path.
+          items:
+            $ref: '#/components/schemas/IriUrn'
+        build_support:
+          allOf:
+            - $ref: '#/components/schemas/IriUrn'
+          description: Registered urn:doe-iri:compute:container-build value.
+        build_docs_uri:
+          type: string
+          format: uri
+        image_scanning:
+          type: string
+          enum: [required, optional, not-supported, unknown]
+        signature_verification:
+          type: string
+          enum: [required, optional, not-supported, unknown]
+        network_modes:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [host, none, isolated]
+        default_network_mode:
+          type: string
+          enum: [host, none, isolated]
+          description: >
+            One member of network_modes. Required when network_modes is
+            present.
+        max_image_bytes:
+          type: integer
+          format: int64
+          minimum: 1
+        notes:
+          type: string
 
     ComputeSystemAttributes:
       type: object
@@ -210,9 +587,23 @@ components:
         version:
           type: string
           description: Identifies the deployed platform or system version when relevant.
+
+        container_runtimes:
+          type: array
+          description: >
+            Container execution capability discovery. OPTIONAL. Absent means
+            container capability is not published (unknown). MAY be empty,
+            which states that containerized execution is unsupported. When
+            non-empty, system_capabilities MUST include
+            urn:doe-iri:compute:system-capability:container-execution and
+            exactly one entry MUST have default true.
+          items:
+            $ref: '#/components/schemas/ContainerRuntimeProfile'
 ```
 
-## 6 Example Compute System JSON Instance
+## 6 Example Compute System JSON Instances
+
+### 6.1 Without Container Runtimes
 
 ```json
 {
@@ -231,6 +622,82 @@ components:
   "version": "1.0"
 }
 ```
+
+### 6.2 With Container Runtimes
+
+```json
+{
+  "schema_version": "1.0.0",
+  "system_capabilities": [
+    "urn:doe-iri:compute:system-capability:batch-scheduling",
+    "urn:doe-iri:compute:system-capability:container-execution",
+    "urn:doe-iri:compute:system-capability:accelerator-support"
+  ],
+  "configured_node_count": 1024,
+  "configured_cpu_core_count": 131072,
+  "configured_gpu_count": 4096,
+  "configured_memory_gib": 524288,
+  "vendor": "Example Vendor",
+  "product": "Example Compute Platform",
+  "version": "1.0",
+  "container_runtimes": [
+    {
+      "runtime": "urn:doe-iri:compute:container-runtime:apptainer",
+      "runtime_version": "1.3.6",
+      "default": true,
+      "accepted_image_formats": [
+        "urn:doe-iri:compute:container-image-format:oci-image",
+        "urn:doe-iri:compute:container-image-format:docker-v2-image",
+        "urn:doe-iri:compute:container-image-format:sif"
+      ],
+      "native_execution_format": "urn:doe-iri:compute:container-image-format:sif",
+      "registry_pull": "urn:doe-iri:compute:container-acquisition:pre-stage-required",
+      "pull_actor": "user",
+      "registry_policy_mode": "any",
+      "private_registry_auth": [
+        "urn:doe-iri:compute:container-registry-auth:anonymous",
+        "urn:doe-iri:compute:container-registry-auth:user-login"
+      ],
+      "rootless_required": true,
+      "privileged_allowed": false,
+      "uid_mode": "urn:doe-iri:compute:container-uid-mode:fakeroot",
+      "gpu_integration": {
+        "programming_interfaces": [
+          "urn:doe-iri:compute:gpu-programming-interface:hip"
+        ],
+        "injection_mechanism": "urn:doe-iri:compute:container-gpu-injection:host-library-bind"
+      },
+      "mpi": {
+        "models": [
+          "urn:doe-iri:compute:container-mpi-model:hybrid",
+          "urn:doe-iri:compute:container-mpi-model:bind",
+          "urn:doe-iri:compute:container-mpi-model:container-native"
+        ],
+        "default_model": "urn:doe-iri:compute:container-mpi-model:hybrid",
+        "host_transfer": "urn:doe-iri:compute:container-mpi-host-transfer:bind-mount",
+        "host_mpi": "HPE Cray MPICH 8",
+        "abi": "urn:doe-iri:compute:container-mpi-abi:mpich",
+        "required_container_mpi": "MPICH 3.4.2 or 3.4.3, ABI-compatible with the cray-mpich-abi module",
+        "gpu_aware": "supported",
+        "process_managers": ["pmi2", "pmix"],
+        "activation": "urn:doe-iri:compute:container-mpi-activation:module",
+        "notes": "Load apptainer-enable-mpi and apptainer-enable-gpu at run time to bind the host Cray MPICH and ROCm libraries; do not load them before 'apptainer build'."
+      },
+      "cpu_architectures": [
+        "urn:doe-iri:compute:cpu-architecture:x86-64"
+      ],
+      "build_support": "urn:doe-iri:compute:container-build:compute-node",
+      "image_scanning": "not-supported",
+      "signature_verification": "optional",
+      "network_modes": ["host", "none"],
+      "default_network_mode": "host",
+      "notes": "Docker/OCI sources must be converted to SIF with 'apptainer pull' before job submission."
+    }
+  ]
+}
+```
+
+A compute system that does not support containerized execution publishes `"container_runtimes": []` and omits `urn:doe-iri:compute:system-capability:container-execution` from `system_capabilities`.
 
 ---
 
