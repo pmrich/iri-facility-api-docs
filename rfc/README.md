@@ -47,3 +47,7 @@ For more information on the broader DoE IRI project, official reference implemen
 4. **[Container Execution Capability Discovery for IRI Compute Systems](./rfc-container-capability-discovery.md)**:
 
 	This document defines a read-only, structured capability-discovery contract for containerized workloads on IRI compute systems. It adds an optional `container_runtimes` attribute to the in-progress Compute System Resource Definition Profile describing accepted runtimes and image formats, direct registry pull versus required pre-staging, registry policy and private-registry authentication model, execution identity and privilege policy, GPU integration, build availability, and CPU architecture. It reuses the type-specific `attributes` mechanism, the DOE-IRI URN registry, and HAL `_links`; it defines no new endpoint and no change to the `Container` job schema. A normalized image acquisition and reuse contract is deferred to a companion RFC.
+
+5. **[Normalized Queueing Policy Discovery for IRI Resources](./rfc-normalized-queue-atttributes.md)::
+
+    This document defines supplemental attributes for Resources that allow a site to describe what kind of queuing behavior exists for that resource, and what the site policies around this behavior are.
